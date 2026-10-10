@@ -1,0 +1,75 @@
+:root {
+  --bg: #ffffff;
+  --panel: #f3f4f6;
+  --ink: #1b1f24;
+  --muted: var(--ink);
+  --line: #d0d5dc;
+  --accent: #1d5fd1;
+}
+
+* { box-sizing: border-box; text-transform: lowercase !important; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.5 "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive;
+}
+
+main { max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 2px solid var(--ink);
+  padding-bottom: 8px;
+  margin-bottom: 20px;
+}
+h1 { font: 400 30px/1.1 "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive; letter-spacing: -0.01em; margin: 0; }
+header a, .label {
+  font: 12px "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+header a {
+  margin-left: auto;
+  padding: 10px 22px;
+  font-size: 18px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
+  background: var(--bg);
+  border: 2px solid var(--ink);
+  border-radius: 2px;
+  text-decoration: none;
+}
+
+main > *:not(canvas) { zoom: 1.3; }
+
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; margin: 12px 0; }
+.info { text-align: center; font: 14px "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive; margin-bottom: 12px; }
+
+button, select, input[type="text"] {
+  font: inherit;
+  padding: 6px 12px;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: 2px;
+  cursor: pointer;
+}
+input[type="text"] { cursor: text; }
+button:hover:not(:disabled) { background: var(--line); }
+button:disabled { opacity: 0.4; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.primary:hover:not(:disabled) { background: #174ba3; border-color: #174ba3; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+#status { font: 14px "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive; min-height: 1.5em; margin: 12px 0; text-align: center; }
+.muted { color: var(--muted); font-size: 14px; text-align: center; margin-top: 24px; }
+canvas { border: 1px solid var(--ink); background: var(--panel); width: 100%; height: auto; max-width: 780px; display: block; margin: 0 auto; }
+
+.board { display: grid; width: max-content; max-width: 100%; margin: 0 auto; border: 1px solid var(--ink); background: var(--line); gap: 1px; }
+.board > * { background: var(--panel); }

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>memory</title>
+<link rel="stylesheet" href="../../base.css">
+<style>
+  #board { gap: 6px; background: none; border: 0; }
+  #board button { width: 64px; height: 64px; padding: 0; font: 400 28px "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive; border: 1px solid var(--ink); background: var(--line); color: transparent; }
+  #board button.up { background: var(--panel); color: var(--ink); }
+  #board button.done { background: var(--accent); border-color: var(--accent); color: #fff; }
+  #board button:disabled { opacity: 1; cursor: default; }
+</style>
+</head>
+<body>
+<main>
+<header><h1>Memory</h1><a href="../../">Back to Menu</a></header>
+<div class="info"><span id="moves" class="label"></span></div>
+<div id="board" class="board"></div>
+<p id="status"></p>
+<div class="bar">
+  <select id="level" aria-label="Difficulty">
+    <option value="4,3">easy (4x3)</option>
+    <option value="4,4" selected>medium (4x4)</option>
+    <option value="6,6">hard (6x6)</option>
+  </select>
+  <button id="new">New game</button>
+</div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const SYMBOLS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'.split('');
+let cards, up, matched, moves, lock;
+
+function reset() {
+  const [w, h] = $('level').value.split(',').map(Number);
+  const picks = SYMBOLS.slice(0, w * h / 2);
+  cards = [...picks, ...picks];
+  for (let i = cards.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [cards[i], cards[j]] = [cards[j], cards[i]]; }
+  up = []; matched = new Set(); moves = 0; lock = false;
+  $('board').style.gridTemplateColumns = `repeat(${w}, 64px)`;
+  render();
+}
+
+function flip(i) {
+  if (lock || up.includes(i) || matched.has(i)) return;
+  up.push(i);
+  if (up.length === 2) {
+    moves++;
+    if (cards[up[0]] === cards[up[1]]) { up.forEach(j => matched.add(j)); up = []; }
+    else { lock = true; setTimeout(() => { up = []; lock = false; render(); }, 800); }
+  }
+  render();
+}
+
+function render() {
+  $('board').replaceChildren(...cards.map((c, i) => {
+    const b = document.createElement('button');
+    const shown = up.includes(i) || matched.has(i);
+    b.textContent = c;
+    b.className = matched.has(i) ? 'done' : shown ? 'up' : '';
+    b.disabled = matched.has(i);
+    b.setAttribute('aria-label', shown ? `Card ${i + 1}, ${c}` : `Card ${i + 1}, face down`);
+    b.onclick = () => flip(i);
+    return b;
+  }));
+  $('moves').textContent = `Moves ${moves}`;
+  $('status').textContent = matched.size === cards.length ? `Done in ${moves} moves.` : '';
+}
+
+$('level').onchange = $('new').onclick = reset;
+reset();
+</script>
+</body>
+</html>

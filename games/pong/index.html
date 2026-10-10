@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>pong</title>
+<link rel="stylesheet" href="../../base.css">
+</head>
+<body>
+<main>
+<header><h1>Pong</h1><a href="../../">Back to Menu</a></header>
+<canvas id="c" width="600" height="400"></canvas>
+<p id="status"></p>
+<div class="bar">
+  <select id="level" aria-label="Bot">
+    <option value="easy">bot: easy</option>
+    <option value="medium" selected>bot: medium</option>
+    <option value="hard">bot: hard</option>
+  </select>
+  <button id="new">New game</button>
+</div>
+<p class="muted">Move with the mouse, or W/S or the arrow keys. Space serves. First to 7.</p>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const cv = $('c'), ctx = cv.getContext('2d');
+const W = 600, H = 400, PH = 70, PW = 10, GOAL = 7;
+const BOT_SPEED = { easy: 2.6, medium: 4, hard: 5.6 };
+let me, bot, ball, py, by, keys, serving, last, raf, over;
+
+function reset() {
+  me = bot = 0; py = by = H / 2 - PH / 2; over = false;
+  serve(1);
+  cancelAnimationFrame(raf);
+  last = performance.now();
+  raf = requestAnimationFrame(loop);
+}
+
+function serve(dir) {
+  ball = { x: W / 2, y: H / 2, vx: 0, vy: 0, dir };
+  serving = true;
+}
+
+function launch() {
+  const a = (Math.random() - 0.5) * 0.9;
+  ball.vx = ball.dir * 5 * Math.cos(a);
+  ball.vy = 5 * Math.sin(a);
+  serving = false;
+}
+
+function update(dt) {
+  if (keys.up) py -= 6 * dt;
+  if (keys.down) py += 6 * dt;
+  py = Math.max(0, Math.min(H - PH, py));
+  const target = ball.y - PH / 2, step = BOT_SPEED[$('level').value] * dt;
+  if (!serving && ball.vx > 0) by += Math.max(-step, Math.min(step, target - by));
+  by = Math.max(0, Math.min(H - PH, by));
+  if (serving || over) return;
+
+  ball.x += ball.vx * dt; ball.y += ball.vy * dt;
+  if (ball.y < 4 || ball.y > H - 4) { ball.vy = -ball.vy; ball.y = Math.max(4, Math.min(H - 4, ball.y)); }
+  const hit = (px, y) => ball.y > y - 4 && ball.y < y + PH + 4;
+  if (ball.vx < 0 && ball.x < 20 + PW && ball.x > 20 && hit(20, py)) bounce(py, 1);
+  if (ball.vx > 0 && ball.x > W - 20 - PW && ball.x < W - 20 && hit(W - 20, by)) bounce(by, -1);
+  if (ball.x < 0) { bot++; point(-1); }
+  if (ball.x > W) { me++; point(1); }
+}
+
+function bounce(y, dir) {
+  const off = (ball.y - (y + PH / 2)) / (PH / 2);
+  const sp = Math.min(Math.hypot(ball.vx, ball.vy) * 1.06, 11);
+  ball.vx = dir * sp * Math.cos(off * 0.9);
+  ball.vy = sp * Math.sin(off * 0.9);
+}
+
+function point(dir) {
+  if (me >= GOAL || bot >= GOAL) { over = true; ball.vx = ball.vy = 0; }
+  else serve(dir);
+}
+
+function paint() {
+  ctx.fillStyle = '#f3f4f6';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#d0d5dc';
+  for (let y = 0; y < H; y += 20) ctx.fillRect(W / 2 - 1, y, 2, 10);
+  ctx.fillStyle = '#1d5fd1';
+  ctx.fillRect(20, py, PW, PH);
+  ctx.fillStyle = '#1b1f24';
+  ctx.fillRect(W - 20 - PW, by, PW, PH);
+  ctx.fillRect(ball.x - 5, ball.y - 5, 10, 10);
+  ctx.font = '32px "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive';
+  ctx.textAlign = 'center';
+  ctx.fillText(me, W / 2 - 40, 44);
+  ctx.fillText(bot, W / 2 + 40, 44);
+  $('status').textContent = over ? (me > bot ? 'You win. Press New game.' : 'The bot wins. Press New game.') : serving ? 'Press Space or click the court to serve.' : '';
+}
+
+function loop(now) {
+  const dt = Math.min((now - last) / 16.67, 3);
+  last = now;
+  update(dt);
+  paint();
+  raf = requestAnimationFrame(loop);
+}
+
+keys = { up: false, down: false };
+const KEYMAP = { ArrowUp: 'up', w: 'up', ArrowDown: 'down', s: 'down' };
+document.addEventListener('keydown', e => {
+  if (KEYMAP[e.key]) { keys[KEYMAP[e.key]] = true; e.preventDefault(); }
+  if (e.key === ' ' && serving && !over) { e.preventDefault(); launch(); }
+});
+document.addEventListener('keyup', e => { if (KEYMAP[e.key]) keys[KEYMAP[e.key]] = false; });
+cv.addEventListener('mousemove', e => {
+  const r = cv.getBoundingClientRect();
+  py = Math.max(0, Math.min(H - PH, (e.clientY - r.top) * H / r.height - PH / 2));
+});
+cv.addEventListener('click', () => { if (serving && !over) launch(); });
+$('level').onchange = e => { e.target.blur(); };
+$('new').onclick = reset;
+reset();
+</script>
+</body>
+</html>

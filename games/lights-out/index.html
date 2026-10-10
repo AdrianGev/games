@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>lights out</title>
+<link rel="stylesheet" href="../../base.css">
+<style>
+  #board { grid-template-columns: repeat(5, 64px); gap: 4px; background: none; border: 0; }
+  #board button { width: 64px; height: 64px; padding: 0; border: 1px solid var(--ink); background: var(--panel); }
+  #board button.on { background: var(--accent); border-color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+<header><h1>Lights Out</h1><a href="../../">Back to Menu</a></header>
+<div class="info"><span id="moves" class="label"></span></div>
+<div id="board" class="board"></div>
+<p id="status"></p>
+<div class="bar">
+  <select id="level" aria-label="Difficulty">
+    <option value="4">easy</option>
+    <option value="9" selected>medium</option>
+    <option value="16">hard</option>
+  </select>
+  <button id="new">New puzzle</button>
+</div>
+<p class="muted">Pressing a square flips it and its four neighbours. Turn every square off (white).</p>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const N = 5;
+let lit, moves;
+
+function press(i) {
+  const r = i / N | 0, c = i % N;
+  for (const [dr, dc] of [[0,0],[1,0],[-1,0],[0,1],[0,-1]]) {
+    const r2 = r + dr, c2 = c + dc;
+    if (r2 >= 0 && r2 < N && c2 >= 0 && c2 < N) lit[r2 * N + c2] ^= 1;
+  }
+}
+
+function reset() {
+  do {
+    lit = Array(N * N).fill(0);
+    const cells = [...Array(N * N).keys()].sort(() => Math.random() - 0.5).slice(0, Number($('level').value));
+    cells.forEach(press);
+  } while (!lit.some(Boolean));
+  moves = 0;
+  render();
+}
+
+function render() {
+  const won = !lit.some(Boolean);
+  $('board').replaceChildren(...lit.map((v, i) => {
+    const b = document.createElement('button');
+    b.className = v ? 'on' : '';
+    b.disabled = won;
+    b.setAttribute('aria-label', `Row ${(i / N | 0) + 1}, column ${i % N + 1}, ${v ? 'on' : 'off'}`);
+    b.onclick = () => { press(i); moves++; render(); };
+    return b;
+  }));
+  $('moves').textContent = `Moves ${moves}`;
+  $('status').textContent = won ? `All off in ${moves} moves.` : `${lit.filter(Boolean).length} squares on.`;
+}
+
+$('level').onchange = $('new').onclick = reset;
+reset();
+</script>
+</body>
+</html>

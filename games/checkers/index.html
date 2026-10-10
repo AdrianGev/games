@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>checkers</title>
+<link rel="stylesheet" href="../../base.css">
+<style>
+  #board { grid-template-columns: repeat(8, 56px); gap: 0; background: var(--panel); }
+  #board button { width: 56px; height: 56px; padding: 0; border: 0; border-radius: 0; position: relative; background: var(--panel); cursor: default; }
+  #board button.dark { background: #9aa5b4; cursor: pointer; }
+  #board button.dark:hover:not(:disabled) { background: #8a96a6; color: inherit; }
+  #board button.sel { outline: 3px solid var(--accent); outline-offset: -3px; }
+  #board button.dest::after { content: ""; position: absolute; inset: 22px; background: var(--accent); border-radius: 50%; }
+  #board button i { position: absolute; inset: 7px; border-radius: 50%; font: 700 16px/42px "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive; font-style: normal; color: #fff; text-align: center; }
+  #board button i.r { background: var(--accent); border: 2px solid #123f8f; }
+  #board button i.b { background: var(--ink); border: 2px solid #000; }
+  #board button:disabled { opacity: 1; }
+</style>
+</head>
+<body>
+<main>
+<header><h1>Checkers</h1><a href="../../">Back to Menu</a></header>
+<div id="board" class="board"></div>
+<p id="status"></p>
+<div class="bar">
+  <select id="mode" aria-label="Opponent">
+    <option value="easy">bot: easy</option>
+    <option value="medium" selected>bot: medium</option>
+    <option value="hard">bot: hard</option>
+    <option value="two">two players</option>
+  </select>
+  <select id="side" aria-label="Your colour">
+    <option value="1">you play blue (first)</option>
+    <option value="-1">you play black (second)</option>
+  </select>
+  <button id="new">New game</button>
+</div>
+<p class="muted">Captures are forced. Kings are marked K. Draw after 40 moves with no capture or man moved.</p>
+</main>
+<script src="../../lib/search.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const ALL = [[-1,-1],[-1,1],[1,-1],[1,1]];
+const dirs = p => Math.abs(p) === 2 ? ALL : ALL.filter(([dr]) => dr === (p > 0 ? -1 : 1));
+
+function startBoard() {
+  const b = Array(64).fill(0);
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++)
+    if ((r + c) % 2) b[r * 8 + c] = r < 3 ? -1 : r > 4 ? 1 : 0;
+  return b;
+}
+
+function jumps(b, i, p, caps, from, out) {
+  let more = false;
+  for (const [dr, dc] of dirs(p)) {
+    const r = (i >> 3) + dr, c = (i & 7) + dc, r2 = r + dr, c2 = c + dc;
+    if (r2 < 0 || r2 > 7 || c2 < 0 || c2 > 7) continue;
+    const mid = r * 8 + c, to = r2 * 8 + c2;
+    if (b[mid] * p >= 0 || caps.includes(mid) || b[to] !== 0) continue;
+    more = true;
+    const kinged = Math.abs(p) === 1 && (r2 === (p > 0 ? 0 : 7));
+    if (kinged) out.push({ from, to, caps: [...caps, mid] });
+    else jumps(b, to, p, [...caps, mid], from, out);
+  }
+  if (!more && caps.length) out.push({ from, to: i, caps });
+}
+
+function legalMoves(s) {
+  const caps = [], steps = [];
+  for (let i = 0; i < 64; i++) {
+    const p = s.b[i];
+    if (!p || p * s.t < 0) continue;
+    const b = s.b.slice();
+    b[i] = 0;
+    jumps(b, i, p, [], i, caps);
+    for (const [dr, dc] of dirs(p)) {
+      const r = (i >> 3) + dr, c = (i & 7) + dc;
+      if (r >= 0 && r < 8 && c >= 0 && c < 8 && !s.b[r * 8 + c]) steps.push({ from: i, to: r * 8 + c, caps: [] });
+    }
+  }
+  return caps.length ? caps : steps;
+}
+
+function applyMove(s, m) {
+  const b = s.b.slice(), p = b[m.from];
+  b[m.from] = 0;
+  for (const c of m.caps) b[c] = 0;
+  const row = m.to >> 3;
+  b[m.to] = Math.abs(p) === 1 && row === (p > 0 ? 0 : 7) ? p * 2 : p;
+  return { b, t: -s.t, q: m.caps.length || Math.abs(p) === 1 ? 0 : s.q + 1 };
+}
+
+const DRAW_AT = 80;
+const G = {
+  moves: legalMoves,
+  apply: applyMove,
+  over: s => s.q >= DRAW_AT || legalMoves(s).length === 0,
+  eval(s, d) {
+    if (s.q >= DRAW_AT) return 0;
+    if (legalMoves(s).length === 0) return -(10000 + d);
+    let v = 0;
+    for (let i = 0; i < 64; i++) {
+      const p = s.b[i];
+      if (!p) continue;
+      const adv = p > 0 ? 7 - (i >> 3) : (i >> 3);
+      v += Math.sign(p) * (Math.abs(p) === 2 ? 160 : 100 + adv * 3);
+    }
+    return v * s.t;
+  },
+};
+const DEPTH = { medium: 3, hard: 6 };
+
+let s, bot, sel, moves;
+
+function reset() {
+  s = { b: startBoard(), t: 1, q: 0 };
+  bot = $('mode').value === 'two' ? 0 : -Number($('side').value);
+  $('side').disabled = !bot;
+  sel = null;
+  refresh();
+}
+
+function refresh() {
+  moves = legalMoves(s);
+  draw();
+  if (!over() && s.t === bot) setTimeout(botMove, 300);
+}
+
+const over = () => s.q >= DRAW_AT || !moves.length;
+
+function botMove() {
+  const mode = $('mode').value;
+  const m = mode === 'easy' ? Search.random(G, s) : Search.pick(G, s, DEPTH[mode]);
+  s = applyMove(s, m);
+  refresh();
+}
+
+function click(i) {
+  if (over() || s.t === bot) return;
+  const mv = sel != null && moves.find(m => m.from === sel && m.to === i);
+  if (mv) { s = applyMove(s, mv); sel = null; refresh(); return; }
+  sel = moves.some(m => m.from === i) ? i : null;
+  draw();
+}
+
+function draw() {
+  const dests = new Set(sel == null ? [] : moves.filter(m => m.from === sel).map(m => m.to));
+  const cells = [];
+  for (let i = 0; i < 64; i++) {
+    const b = document.createElement('button');
+    const dark = ((i >> 3) + (i & 7)) % 2 === 1, p = s.b[i];
+    b.className = (dark ? 'dark ' : '') + (i === sel ? 'sel ' : '') + (dests.has(i) ? 'dest' : '');
+    if (p) b.innerHTML = `<i class="${p > 0 ? 'r' : 'b'}">${Math.abs(p) === 2 ? 'K' : ''}</i>`;
+    b.setAttribute('aria-label', `Row ${(i >> 3) + 1}, column ${(i & 7) + 1}${p ? ', ' + (p > 0 ? 'blue' : 'black') + (Math.abs(p) === 2 ? ' king' : '') : ''}`);
+    b.disabled = !dark;
+    b.onclick = () => click(i);
+    cells.push(b);
+  }
+  $('board').replaceChildren(...cells);
+  const name = t => bot ? (t === bot ? 'Bot' : 'You') + (t === 1 ? ' (blue)' : ' (black)') : (t === 1 ? 'Blue' : 'Black');
+  let msg;
+  if (s.q >= DRAW_AT) msg = 'Draw.';
+  else if (!moves.length) msg = `${name(-s.t)} ${bot && -s.t !== bot ? 'win' : 'wins'}.`;
+  else msg = `${name(s.t)} to move${moves[0].caps.length ? ' (must capture)' : ''}.`;
+  $('status').textContent = msg;
+}
+
+$('mode').onchange = $('side').onchange = $('new').onclick = reset;
+reset();
+</script>
+</body>
+</html>

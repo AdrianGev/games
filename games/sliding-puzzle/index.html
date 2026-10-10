@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>sliding puzzle</title>
+<link rel="stylesheet" href="../../base.css">
+<style>
+  #board { gap: 4px; background: none; border: 0; }
+  #board button { width: 72px; height: 72px; padding: 0; font: 400 26px "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive; border: 1px solid var(--ink); }
+  #board button.blank { visibility: hidden; }
+</style>
+</head>
+<body>
+<main>
+<header><h1>Sliding puzzle</h1><a href="../../">Back to Menu</a></header>
+<div class="info"><span id="moves" class="label"></span></div>
+<div id="board" class="board"></div>
+<p id="status"></p>
+<div class="bar">
+  <select id="level" aria-label="Difficulty">
+    <option value="3">easy (3x3)</option>
+    <option value="4" selected>medium (4x4)</option>
+    <option value="5">hard (5x5)</option>
+  </select>
+  <button id="new">Shuffle</button>
+</div>
+<p class="muted">Click a tile next to the gap, or use the arrow keys.</p>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let n, t, moves;
+
+const solved = () => t.every((v, i) => v === (i + 1) % (n * n));
+
+function slide(i) {
+  const g = t.indexOf(0), r = i / n | 0, c = i % n, gr = g / n | 0, gc = g % n;
+  if (Math.abs(r - gr) + Math.abs(c - gc) !== 1) return false;
+  [t[i], t[g]] = [t[g], t[i]];
+  return true;
+}
+
+function reset() {
+  n = Number($('level').value);
+  t = [...Array(n * n).keys()].map(i => (i + 1) % (n * n));
+  let last = -1;
+  for (let k = 0; k < n * n * 40; k++) {
+    const g = t.indexOf(0), r = g / n | 0, c = g % n, opts = [];
+    if (r > 0) opts.push(g - n);
+    if (r < n - 1) opts.push(g + n);
+    if (c > 0) opts.push(g - 1);
+    if (c < n - 1) opts.push(g + 1);
+    const pick = opts.filter(o => o !== last);
+    const i = pick[Math.floor(Math.random() * pick.length)];
+    last = g;
+    slide(i);
+  }
+  if (solved()) return reset();
+  moves = 0;
+  $('board').style.gridTemplateColumns = `repeat(${n}, 72px)`;
+  render();
+}
+
+function render() {
+  $('board').replaceChildren(...t.map((v, i) => {
+    const b = document.createElement('button');
+    b.textContent = v || '';
+    b.className = v ? '' : 'blank';
+    b.disabled = solved();
+    b.onclick = () => { if (slide(i)) { moves++; render(); } };
+    return b;
+  }));
+  $('moves').textContent = `Moves ${moves}`;
+  $('status').textContent = solved() ? `Solved in ${moves} moves.` : '';
+}
+
+document.addEventListener('keydown', e => {
+  const d = { ArrowUp: n, ArrowDown: -n, ArrowLeft: 1, ArrowRight: -1 }[e.key];
+  if (!d || solved()) return;
+  e.preventDefault();
+  const g = t.indexOf(0), i = g + d;
+  if (i < 0 || i >= n * n || (Math.abs(d) === 1 && (i / n | 0) !== (g / n | 0))) return;
+  if (slide(i)) { moves++; render(); }
+});
+$('level').onchange = $('new').onclick = e => { e.target.blur(); reset(); };
+reset();
+</script>
+</body>
+</html>

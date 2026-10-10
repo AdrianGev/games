@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>mastermind</title>
+<link rel="stylesheet" href="../../base.css">
+<style>
+  table { margin: 0 auto 16px; border-collapse: collapse; font: 16px "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive; margin-bottom: 16px; }
+  td, th { border-bottom: 1px solid var(--line); padding: 4px 16px 4px 0; text-align: left; font-weight: 400; }
+  th { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  #entry { font: 400 28px "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive; letter-spacing: 0.4em; min-height: 1.4em; margin: 8px 0; text-align: center; }
+  #pad { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+  #pad button { min-width: 44px; }
+</style>
+</head>
+<body>
+<main>
+<header><h1>Mastermind</h1><a href="../../">Back to Menu</a></header>
+<table><thead><tr><th>#</th><th>Guess</th><th>Right place</th><th>Wrong place</th></tr></thead><tbody id="rows"></tbody></table>
+<div id="entry" aria-live="polite"></div>
+<div id="pad"></div>
+<p id="status"></p>
+<div class="bar">
+  <select id="level" aria-label="Difficulty">
+    <option value="12">easy (12 guesses)</option>
+    <option value="10" selected>medium (10 guesses)</option>
+    <option value="7">hard (7 guesses)</option>
+  </select>
+  <button id="new">New game</button>
+</div>
+<p class="muted">The secret is four digits from 1 to 6. Digits can repeat. After each guess you learn how many are the right digit in the right place, and how many are a right digit in the wrong place.</p>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let secret, rows, cur, max, over;
+
+function feedback(guess, code) {
+  let exact = 0;
+  const g = [], c = [];
+  for (let i = 0; i < 4; i++) { if (guess[i] === code[i]) exact++; else { g.push(guess[i]); c.push(code[i]); } }
+  let near = 0;
+  for (const d of g) { const k = c.indexOf(d); if (k >= 0) { near++; c.splice(k, 1); } }
+  return [exact, near];
+}
+
+function reset() {
+  secret = Array.from({ length: 4 }, () => 1 + Math.floor(Math.random() * 6));
+  max = Number($('level').value);
+  rows = []; cur = []; over = null;
+  render();
+}
+
+function enter(d) {
+  if (over) return;
+  if (d === 'back') cur.pop();
+  else if (d === 'go') {
+    if (cur.length < 4) return;
+    const [exact, near] = feedback(cur, secret);
+    rows.push({ guess: cur.join(''), exact, near });
+    cur = [];
+    over = exact === 4 ? 'won' : rows.length === max ? 'lost' : null;
+  } else if (cur.length < 4) cur.push(d);
+  render();
+}
+
+function render() {
+  $('rows').replaceChildren(...rows.map((r, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${i + 1}</td><td>${r.guess}</td><td>${r.exact}</td><td>${r.near}</td>`;
+    return tr;
+  }));
+  $('entry').textContent = cur.join(' ') || ' ';
+  $('pad').replaceChildren(...[1,2,3,4,5,6,'back','go'].map(k => {
+    const b = document.createElement('button');
+    b.textContent = k === 'back' ? 'Del' : k === 'go' ? 'Guess' : k;
+    if (k === 'go') b.className = 'primary';
+    b.disabled = !!over;
+    b.onclick = () => enter(k);
+    return b;
+  }));
+  $('status').textContent = over === 'won' ? `Cracked in ${rows.length}.` : over === 'lost' ? `Out of guesses. The code was ${secret.join('')}.` : `${max - rows.length} guesses left.`;
+}
+
+document.addEventListener('keydown', e => {
+  if (/^[1-6]$/.test(e.key)) enter(Number(e.key));
+  else if (e.key === 'Backspace') enter('back');
+  else if (e.key === 'Enter' && document.activeElement.tagName !== 'BUTTON') enter('go');
+});
+$('level').onchange = $('new').onclick = e => { e.target.blur(); reset(); };
+reset();
+</script>
+</body>
+</html>

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>hangman</title>
+<link rel="stylesheet" href="../../base.css">
+<style>
+  pre { font: 18px/1.2 ui-monospace, Consolas, monospace; margin: 0 auto 12px; width: max-content; }
+  #word { font: 400 36px "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive; letter-spacing: 0.3em; margin-bottom: 16px; min-height: 1.3em; text-align: center; }
+  #keys { display: flex; flex-wrap: wrap; gap: 4px; max-width: 460px; justify-content: center; margin: 0 auto; }
+  #keys button { min-width: 38px; padding: 8px 0; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<main>
+<header><h1>Hangman</h1><a href="../../">Back to Menu</a></header>
+<pre id="art"></pre>
+<div id="word" aria-live="polite"></div>
+<div id="keys"></div>
+<p id="status"></p>
+<div class="bar">
+  <select id="level" aria-label="Difficulty">
+    <option value="easy">easy (short words)</option>
+    <option value="medium" selected>medium</option>
+    <option value="hard">hard (long words)</option>
+  </select>
+  <button id="new">New word</button>
+</div>
+</main>
+<script>
+const WORDS = `cat dog sun map ship bird tree book fish door lamp rain moon star wind frog cake milk hand foot nose
+apple chair table river house plant cloud tiger zebra lemon bread horse music night ocean piano robot snake storm
+window garden planet rocket bottle pencil jungle castle bridge button candle forest guitar helmet island mirror
+pumpkin library balloon compass dolphin kitchen monster penguin teacher volcano blanket
+adventure chocolate dinosaur elephant football hospital mountain notebook sandwich umbrella waterfall telescope
+playground butterfly calendar chemistry champion crocodile discovery equation fireworks gymnasium`.split(/\s+/);
+const STAGES = [
+  '  +---+\n  |   |\n      |\n      |\n      |\n      |\n=======',
+  '  +---+\n  |   |\n  O   |\n      |\n      |\n      |\n=======',
+  '  +---+\n  |   |\n  O   |\n  |   |\n      |\n      |\n=======',
+  '  +---+\n  |   |\n  O   |\n /|   |\n      |\n      |\n=======',
+  '  +---+\n  |   |\n  O   |\n /|\\  |\n      |\n      |\n=======',
+  '  +---+\n  |   |\n  O   |\n /|\\  |\n /    |\n      |\n=======',
+  '  +---+\n  |   |\n  O   |\n /|\\  |\n / \\  |\n      |\n=======',
+];
+const MAX = STAGES.length - 1;
+const $ = id => document.getElementById(id);
+const pool = lvl => WORDS.filter(w => lvl === 'easy' ? w.length <= 5 : lvl === 'medium' ? w.length > 5 && w.length <= 7 : w.length > 7);
+let word, guessed, wrong;
+
+function reset() {
+  const p = pool($('level').value);
+  word = p[Math.floor(Math.random() * p.length)];
+  guessed = new Set(); wrong = 0;
+  render();
+}
+
+function guess(ch) {
+  if (done() || guessed.has(ch)) return;
+  guessed.add(ch);
+  if (!word.includes(ch)) wrong++;
+  render();
+}
+
+const won = () => [...word].every(c => guessed.has(c));
+const done = () => won() || wrong >= MAX;
+
+function render() {
+  $('art').textContent = STAGES[wrong];
+  $('word').textContent = [...word].map(c => guessed.has(c) || wrong >= MAX ? c : '_').join(' ');
+  $('keys').replaceChildren(...'abcdefghijklmnopqrstuvwxyz'.split('').map(c => {
+    const b = document.createElement('button');
+    b.textContent = c;
+    b.disabled = guessed.has(c) || done();
+    b.onclick = () => guess(c);
+    return b;
+  }));
+  $('status').textContent = won() ? 'You got it.' : wrong >= MAX ? 'Out of guesses.' : `${MAX - wrong} wrong guesses left.`;
+}
+
+document.addEventListener('keydown', e => {
+  if (!e.ctrlKey && !e.metaKey && !e.altKey && /^[a-z]$/i.test(e.key)) guess(e.key.toLowerCase());
+});
+$('level').onchange = $('new').onclick = e => { e.target.blur(); reset(); };
+reset();
+</script>
+</body>
+</html>

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>tower of hanoi</title>
+<link rel="stylesheet" href="../../base.css">
+<style>
+  #pegs { display: flex; gap: 12px; }
+  .peg { flex: 1; min-width: 0; height: 240px; display: flex; flex-direction: column-reverse; align-items: center; padding: 0 0 8px; border: 1px solid var(--ink); background: var(--panel); gap: 2px; }
+  .peg.sel { border-color: var(--accent); border-width: 3px; padding-bottom: 6px; }
+  .peg:hover:not(:disabled) { background: var(--line); color: var(--ink); }
+  .disc { height: 24px; background: var(--ink); }
+  .disc.top { background: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+<header><h1>Tower of Hanoi</h1><a href="../../">Back to Menu</a></header>
+<div class="info"><span id="moves" class="label"></span></div>
+<div id="pegs"></div>
+<p id="status"></p>
+<div class="bar">
+  <select id="level" aria-label="Difficulty">
+    <option value="3">easy (3 discs)</option>
+    <option value="5" selected>medium (5 discs)</option>
+    <option value="7">hard (7 discs)</option>
+  </select>
+  <button id="new">Restart</button>
+</div>
+<p class="muted">Move the whole stack to the right-hand peg. Click a peg to pick up its top disc, then click where to put it. A bigger disc can never sit on a smaller one.</p>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let pegs, n, sel, moves;
+
+function reset() {
+  n = Number($('level').value);
+  pegs = [Array.from({ length: n }, (_, i) => n - i), [], []];
+  sel = null; moves = 0;
+  render();
+}
+
+function click(p) {
+  if (pegs[2].length === n) return;
+  if (sel === null) { if (pegs[p].length) sel = p; }
+  else {
+    const d = pegs[sel].at(-1), top = pegs[p].at(-1);
+    if (p !== sel && (!top || d < top)) { pegs[p].push(pegs[sel].pop()); moves++; }
+    sel = null;
+  }
+  render();
+}
+
+function render() {
+  $('pegs').replaceChildren(...pegs.map((discs, p) => {
+    const b = document.createElement('button');
+    b.className = 'peg' + (sel === p ? ' sel' : '');
+    b.setAttribute('aria-label', `Peg ${p + 1}, ${discs.length} discs`);
+    discs.forEach((d, i) => {
+      const e = document.createElement('div');
+      e.className = 'disc' + (sel === p && i === discs.length - 1 ? ' top' : '');
+      e.style.width = `${20 + d * 70 / n}%`;
+      b.append(e);
+    });
+    b.onclick = () => click(p);
+    return b;
+  }));
+  const best = 2 ** n - 1;
+  $('moves').textContent = `Moves ${moves} | Fewest possible ${best}`;
+  $('status').textContent = pegs[2].length === n ? (moves === best ? 'Solved in the fewest possible moves.' : `Solved in ${moves} moves.`) : '';
+}
+
+$('level').onchange = $('new').onclick = reset;
+reset();
+</script>
+</body>
+</html>

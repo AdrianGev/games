@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>breakout</title>
+<link rel="stylesheet" href="../../base.css">
+<style>canvas { max-width: 620px; }</style>
+</head>
+<body>
+<main>
+<header><h1>Breakout</h1><a href="../../">Back to Menu</a></header>
+<div class="info"><span id="score" class="label"></span></div>
+<canvas id="c" width="480" height="400"></canvas>
+<p id="status"></p>
+<div class="bar">
+  <select id="level" aria-label="Difficulty">
+    <option value="easy">easy</option>
+    <option value="medium" selected>medium</option>
+    <option value="hard">hard</option>
+  </select>
+  <button id="new">New game</button>
+</div>
+<p class="muted">Move with the mouse or the left/right arrow keys. Space or click launches the ball.</p>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const cv = $('c'), ctx = cv.getContext('2d');
+const W = 480, H = 400, COLS = 8, BW = 54, BH = 18, GAP = 6, TOP = 50;
+const LEVELS = { easy: { rows: 3, pw: 100, speed: 4 }, medium: { rows: 5, pw: 80, speed: 5 }, hard: { rows: 7, pw: 60, speed: 6 } };
+let L, bricks, px, ball, lives, score, held, raf, last, keys = { l: false, r: false };
+
+function reset() {
+  L = LEVELS[$('level').value];
+  bricks = [];
+  for (let r = 0; r < L.rows; r++) for (let c = 0; c < COLS; c++)
+    bricks.push({ x: 6 + c * (BW + GAP), y: TOP + r * (BH + GAP), alive: true });
+  px = W / 2 - L.pw / 2; lives = 3; score = 0;
+  park();
+  cancelAnimationFrame(raf);
+  last = performance.now();
+  raf = requestAnimationFrame(loop);
+}
+
+function park() { ball = { x: 0, y: 0, vx: 0, vy: 0 }; held = true; }
+
+function launch() {
+  if (!held || lives <= 0) return;
+  const a = (Math.random() - 0.5) * 0.8;
+  ball.vx = L.speed * Math.sin(a); ball.vy = -L.speed * Math.cos(a);
+  held = false;
+}
+
+const won = () => bricks.every(b => !b.alive);
+const over = () => lives <= 0 || won();
+
+function update(dt) {
+  if (keys.l) px -= 7 * dt;
+  if (keys.r) px += 7 * dt;
+  px = Math.max(0, Math.min(W - L.pw, px));
+  if (held) { ball.x = px + L.pw / 2; ball.y = H - 30 - 8; return; }
+  if (over()) return;
+  ball.x += ball.vx * dt; ball.y += ball.vy * dt;
+  if (ball.x < 6) { ball.x = 6; ball.vx = Math.abs(ball.vx); }
+  if (ball.x > W - 6) { ball.x = W - 6; ball.vx = -Math.abs(ball.vx); }
+  if (ball.y < 6) { ball.y = 6; ball.vy = Math.abs(ball.vy); }
+  if (ball.vy > 0 && ball.y > H - 30 - 6 && ball.y < H - 14 && ball.x > px - 4 && ball.x < px + L.pw + 4) {
+    const off = (ball.x - (px + L.pw / 2)) / (L.pw / 2);
+    const sp = Math.hypot(ball.vx, ball.vy);
+    ball.vx = sp * Math.sin(off * 1.0); ball.vy = -sp * Math.cos(off * 1.0);
+    ball.y = H - 30 - 6;
+  }
+  for (const b of bricks) {
+    if (!b.alive || ball.x < b.x - 5 || ball.x > b.x + BW + 5 || ball.y < b.y - 5 || ball.y > b.y + BH + 5) continue;
+    b.alive = false; score += 10;
+    const dx = Math.min(ball.x - b.x, b.x + BW - ball.x), dy = Math.min(ball.y - b.y, b.y + BH - ball.y);
+    if (dx < dy) ball.vx = -ball.vx; else ball.vy = -ball.vy;
+    break;
+  }
+  if (ball.y > H + 10) { lives--; park(); }
+}
+
+function paint() {
+  ctx.fillStyle = '#f3f4f6';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#1b1f24';
+  for (const b of bricks) if (b.alive) ctx.fillRect(b.x, b.y, BW, BH);
+  ctx.fillStyle = '#1d5fd1';
+  ctx.fillRect(px, H - 30, L.pw, 10);
+  ctx.fillStyle = '#1b1f24';
+  ctx.fillRect(ball.x - 5, ball.y - 5, 10, 10);
+  $('score').textContent = `Score ${score} | Lives ${Math.max(lives, 0)}`;
+  $('status').textContent = won() ? 'You cleared every brick.' : lives <= 0 ? 'Out of lives. Press New game.' : held ? 'Press Space or click to launch.' : '';
+}
+
+function loop(now) {
+  const dt = Math.min((now - last) / 16.67, 3);
+  last = now;
+  update(dt);
+  paint();
+  raf = requestAnimationFrame(loop);
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') { keys.l = true; e.preventDefault(); }
+  if (e.key === 'ArrowRight') { keys.r = true; e.preventDefault(); }
+  if (e.key === ' ') { e.preventDefault(); launch(); }
+});
+document.addEventListener('keyup', e => {
+  if (e.key === 'ArrowLeft') keys.l = false;
+  if (e.key === 'ArrowRight') keys.r = false;
+});
+cv.addEventListener('mousemove', e => {
+  const r = cv.getBoundingClientRect();
+  px = Math.max(0, Math.min(W - L.pw, (e.clientX - r.left) * W / r.width - L.pw / 2));
+});
+cv.addEventListener('click', launch);
+$('level').onchange = e => { e.target.blur(); reset(); };
+$('new').onclick = reset;
+reset();
+</script>
+</body>
+</html>

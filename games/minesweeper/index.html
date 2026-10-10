@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>minesweeper</title>
+<link rel="stylesheet" href="../../base.css">
+<style>
+  .wrap { overflow-x: auto; }
+  #board button { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 0; font: 700 15px "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive; background: var(--line); }
+  #board button.open { background: var(--panel); cursor: default; }
+  #board button.open:hover { background: var(--panel); color: var(--ink); }
+  #board button.mine { background: var(--accent); color: #fff; }
+  #board button.flag { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+<header><h1>Minesweeper</h1><a href="../../">Back to Menu</a></header>
+<div class="info"><span id="info" class="label"></span></div>
+<div class="wrap"><div id="board" class="board"></div></div>
+<p id="status"></p>
+<div class="bar">
+  <select id="level" aria-label="Difficulty">
+    <option value="9,9,10">easy (9x9)</option>
+    <option value="16,16,40">medium (16x16)</option>
+    <option value="30,16,99">hard (30x16)</option>
+  </select>
+  <button id="new">New game</button>
+  <button id="flagmode" aria-pressed="false">Flag mode: off</button>
+</div>
+<p class="muted">Click to reveal, right-click (or flag mode) to flag. Your first click is always safe.</p>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let W, H, M, mines, shown, flags, over, started, flagMode = false, t0, tick;
+
+function neighbors(i) {
+  const r = i / W | 0, c = i % W, out = [];
+  for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+    const r2 = r + dr, c2 = c + dc;
+    if ((dr || dc) && r2 >= 0 && r2 < H && c2 >= 0 && c2 < W) out.push(r2 * W + c2);
+  }
+  return out;
+}
+const adj = i => neighbors(i).filter(j => mines.has(j)).length;
+
+function reset() {
+  [W, H, M] = $('level').value.split(',').map(Number);
+  mines = new Set(); shown = new Set(); flags = new Set();
+  over = null; started = false;
+  clearInterval(tick);
+  $('board').style.gridTemplateColumns = `repeat(${W}, 28px)`;
+  render();
+}
+
+function start(safe) {
+  const avoid = new Set([safe, ...neighbors(safe)]);
+  while (mines.size < M) {
+    const i = Math.floor(Math.random() * W * H);
+    if (!avoid.has(i)) mines.add(i);
+  }
+  started = true;
+  t0 = Date.now();
+  tick = setInterval(info, 500);
+}
+
+function reveal(i) {
+  if (over || shown.has(i) || flags.has(i)) return;
+  if (!started) start(i);
+  if (mines.has(i)) { over = 'lost'; clearInterval(tick); return; }
+  const stack = [i];
+  while (stack.length) {
+    const j = stack.pop();
+    if (shown.has(j) || flags.has(j)) continue;
+    shown.add(j);
+    if (!adj(j)) stack.push(...neighbors(j));
+  }
+  if (shown.size === W * H - M) { over = 'won'; clearInterval(tick); }
+}
+
+function flag(i) {
+  if (over || shown.has(i)) return;
+  flags.has(i) ? flags.delete(i) : flags.add(i);
+}
+
+function info() {
+  $('info').textContent = `Mines left ${M - flags.size} | Time ${started ? Math.floor((Date.now() - t0) / 1000) : 0}s`;
+}
+
+function render() {
+  $('board').replaceChildren(...Array.from({ length: W * H }, (_, i) => {
+    const b = document.createElement('button');
+    const open = shown.has(i), boom = over === 'lost' && mines.has(i);
+    b.className = (open ? 'open ' : '') + (boom ? 'mine ' : '') + (flags.has(i) ? 'flag' : '');
+    b.textContent = boom ? '*' : flags.has(i) ? 'F' : open ? adj(i) || '' : '';
+    b.setAttribute('aria-label', `Row ${(i / W | 0) + 1}, column ${i % W + 1}`);
+    b.onclick = () => { flagMode ? flag(i) : reveal(i); render(); };
+    b.oncontextmenu = e => { e.preventDefault(); flag(i); render(); };
+    return b;
+  }));
+  info();
+  $('status').textContent = over === 'won' ? 'You cleared the field.' : over === 'lost' ? 'Boom. Press New game.' : '';
+}
+
+$('flagmode').onclick = e => {
+  flagMode = !flagMode;
+  e.target.textContent = 'Flag mode: ' + (flagMode ? 'on' : 'off');
+  e.target.setAttribute('aria-pressed', flagMode);
+};
+$('level').onchange = $('new').onclick = reset;
+reset();
+</script>
+</body>
+</html>

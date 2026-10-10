@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>higher or lower</title>
+<link rel="stylesheet" href="../../base.css">
+<style>
+  .hand { display: flex; gap: 8px; min-height: 84px; margin: 6px 0 16px; flex-wrap: wrap; justify-content: center; }
+  main { text-align: center; }
+  .card { width: 56px; height: 80px; border: 1px solid var(--ink); background: var(--panel); padding: 6px; font: 400 20px "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive; }
+  .card.red { color: #b3261e; }
+  .card.big { width: 80px; height: 112px; font-size: 30px; padding: 8px; }
+</style>
+</head>
+<body>
+<main>
+<header><h1>Higher or lower</h1><a href="../../">Back to Menu</a></header>
+<div class="info"><span id="score" class="label"></span></div>
+<span class="label">History</span>
+<div id="hist" class="hand"></div>
+<div id="current" class="hand"></div>
+<div class="bar">
+  <button id="higher" class="primary">Higher</button>
+  <button id="lower" class="primary">Lower</button>
+</div>
+<p id="status"></p>
+<div class="bar">
+  <select id="level" aria-label="Difficulty">
+    <option value="easy">easy (3 lives, a tie is safe)</option>
+    <option value="medium" selected>medium (2 lives)</option>
+    <option value="hard">hard (1 life)</option>
+  </select>
+  <button id="new">New game</button>
+</div>
+<p class="muted">Will the next card be higher or lower? Aces are low. Each right call adds to your streak.</p>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+const SUITS = ['♠','♥','♦','♣'];
+let deck, cur, hist, streak, best, lives, over;
+
+function newDeck() {
+  deck = [];
+  for (let r = 1; r <= 13; r++) for (const s of SUITS) deck.push({ r, s });
+  for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
+}
+
+function reset() {
+  newDeck();
+  cur = deck.pop(); hist = []; streak = 0; over = false;
+  lives = { easy: 3, medium: 2, hard: 1 }[$('level').value];
+  render('');
+}
+
+function guess(higher) {
+  if (over) return;
+  const nxt = deck.pop();
+  const tie = nxt.r === cur.r;
+  const ok = tie ? $('level').value === 'easy' : (nxt.r > cur.r) === higher;
+  hist.unshift(cur);
+  cur = nxt;
+  if (ok) streak++;
+  else { lives--; streak = 0; }
+  best = Math.max(best || 0, streak);
+  if (lives <= 0) over = true;
+  if (!deck.length) over = true;
+  render(ok ? (tie ? 'A tie. You live.' : 'Right.') : lives > 0 ? `Wrong. ${lives} ${lives === 1 ? 'life' : 'lives'} left.` : 'Wrong. Game over.');
+}
+
+function cardEl(c, big) {
+  const d = document.createElement('div');
+  d.className = 'card' + (big ? ' big' : '') + (c.s === '♥' || c.s === '♦' ? ' red' : '');
+  d.textContent = RANKS[c.r - 1] + c.s;
+  return d;
+}
+
+function render(msg) {
+  $('current').replaceChildren(cardEl(cur, true));
+  $('hist').replaceChildren(...hist.slice(0, 10).map(c => cardEl(c)));
+  $('score').textContent = `Streak ${streak} | Best ${best || 0} | Lives ${lives} | Cards left ${deck.length}`;
+  $('higher').disabled = $('lower').disabled = over;
+  $('status').textContent = over && !msg.includes('over') ? 'Deck finished. ' + msg : msg;
+}
+
+$('higher').onclick = () => guess(true);
+$('lower').onclick = () => guess(false);
+$('level').onchange = $('new').onclick = reset;
+reset();
+</script>
+</body>
+</html>

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>pig</title>
+<link rel="stylesheet" href="../../base.css">
+<style>
+  .score { display: flex; justify-content: center; text-align: center; gap: 40px; font: 400 32px "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive; margin: 8px 0 16px; }
+  .score small { display: block; font: 12px "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  #die { font: 400 64px "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive; min-height: 1.3em; text-align: center; }
+  #log { font: 14px "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive; min-height: 4.5em; color: var(--muted); text-align: center; }
+</style>
+</head>
+<body>
+<main>
+<header><h1>Pig</h1><a href="../../">Back to Menu</a></header>
+<div class="score">
+  <div><small>You</small><span id="me"></span></div>
+  <div><small>Bot</small><span id="bot"></span></div>
+  <div><small>This turn</small><span id="turn"></span></div>
+</div>
+<div id="die"></div>
+<div class="bar">
+  <button id="roll" class="primary">Roll</button>
+  <button id="hold">Hold</button>
+</div>
+<div id="log"></div>
+<p id="status"></p>
+<div class="bar">
+  <select id="level" aria-label="Bot">
+    <option value="easy">bot: easy</option>
+    <option value="medium" selected>bot: medium</option>
+    <option value="hard">bot: hard</option>
+  </select>
+  <button id="new">New game</button>
+</div>
+<p class="muted">Roll to add to your turn total. Roll a 1 and you lose the turn total. Hold to bank it. First to 100 wins.</p>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const GOAL = 100;
+let score, turn, who, over, log, timer;
+
+function botRolls(level, mine, theirs, turnTotal) {
+  if (mine + turnTotal >= GOAL) return false;
+  if (level === 'easy') return turnTotal < 10;
+  if (level === 'medium') return turnTotal < 20;
+  if (theirs >= 80 || mine >= 80) return true;
+  return turnTotal < 25 - (mine - theirs) / 8;
+}
+
+function reset() {
+  clearTimeout(timer);
+  score = [0, 0]; turn = 0; who = 0; over = false; log = [];
+  $('die').textContent = '';
+  render();
+}
+
+function roll() {
+  const d = 1 + Math.floor(Math.random() * 6);
+  $('die').textContent = d;
+  if (d === 1) {
+    note(`${who ? 'Bot' : 'You'} rolled a 1 and lost ${turn}.`);
+    endTurn(false);
+  } else {
+    turn += d;
+    render();
+    if (score[who] + turn >= GOAL) endTurn(true);
+  }
+}
+
+function endTurn(bank) {
+  if (bank) {
+    score[who] += turn;
+    if (turn) note(`${who ? 'Bot' : 'You'} held ${turn}.`);
+  }
+  turn = 0;
+  if (score[who] >= GOAL) { over = true; render(); return; }
+  who = 1 - who;
+  render();
+  if (who === 1) timer = setTimeout(botStep, 700);
+}
+
+function botStep() {
+  if (botRolls($('level').value, score[1], score[0], turn)) { roll(); if (who === 1 && !over) timer = setTimeout(botStep, 700); }
+  else endTurn(true);
+}
+
+function note(s) { log.unshift(s); log = log.slice(0, 3); }
+
+function render() {
+  $('me').textContent = score[0];
+  $('bot').textContent = score[1];
+  $('turn').textContent = turn;
+  $('roll').disabled = $('hold').disabled = over || who === 1;
+  $('log').innerHTML = log.map(l => `<div>${l}</div>`).join('');
+  $('status').textContent = over ? (score[0] >= GOAL ? 'You win.' : 'The bot wins.') : who ? 'Bot is playing...' : 'Your turn.';
+}
+
+$('roll').onclick = roll;
+$('hold').onclick = () => endTurn(true);
+$('level').onchange = $('new').onclick = reset;
+reset();
+</script>
+</body>
+</html>

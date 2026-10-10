@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>sudoku</title>
+<link rel="stylesheet" href="../../base.css">
+<style>
+  #board { grid-template-columns: repeat(9, 44px); gap: 0; background: var(--panel); border: 2px solid var(--ink); }
+  #board button { width: 44px; height: 44px; padding: 0; border: 0; border-radius: 0; font: 400 22px "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  #board button:nth-child(3n) { border-right: 2px solid var(--ink); }
+  #board button:nth-child(9n) { border-right: 0; }
+  #board button:nth-child(n+19):nth-child(-n+27), #board button:nth-child(n+46):nth-child(-n+54) { border-bottom: 2px solid var(--ink); }
+  #board button.given { font-weight: 700; }
+  #board button.bad { color: var(--accent); }
+  #board button.sel { background: var(--line); color: var(--ink); }
+  #pad { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; justify-content: center; }
+  #pad button { width: 40px; padding: 6px 0; }
+  @media (max-width: 460px) {
+    #board { grid-template-columns: repeat(9, 1fr); width: 100%; }
+    #board button { width: 100%; height: auto; aspect-ratio: 1; }
+  }
+</style>
+</head>
+<body>
+<main>
+<header><h1>Sudoku</h1><a href="../../">Back to Menu</a></header>
+<div id="board" class="board"></div>
+<div id="pad"></div>
+<p id="status"></p>
+<div class="bar">
+  <select id="level" aria-label="Difficulty">
+    <option value="36">easy</option>
+    <option value="46" selected>medium</option>
+    <option value="54">hard</option>
+  </select>
+  <button id="new">New puzzle</button>
+</div>
+<p class="muted">Click a square, then type 1-9 (0 or Backspace clears). Arrow keys move. Duplicates show in red.</p>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+function used(g, i) {
+  const r = i / 9 | 0, c = i % 9, br = r - r % 3, bc = c - c % 3;
+  let u = 0;
+  for (let k = 0; k < 9; k++) { u |= 1 << g[r * 9 + k]; u |= 1 << g[k * 9 + c]; }
+  for (let y = 0; y < 3; y++) for (let x = 0; x < 3; x++) u |= 1 << g[(br + y) * 9 + bc + x];
+  return u;
+}
+function pickCell(g) {
+  let best = null, bn = 10;
+  for (let i = 0; i < 81; i++) {
+    if (g[i]) continue;
+    const u = used(g, i);
+    let n = 0;
+    for (let v = 1; v <= 9; v++) if (!(u >> v & 1)) n++;
+    if (n < bn) { bn = n; best = { i, u }; if (n <= 1) break; }
+  }
+  return best;
+}
+function count(g, limit) {
+  const e = pickCell(g);
+  if (!e) return 1;
+  let n = 0;
+  for (let v = 1; v <= 9 && n < limit; v++) {
+    if (e.u >> v & 1) continue;
+    g[e.i] = v; n += count(g, limit - n); g[e.i] = 0;
+  }
+  return n;
+}
+function fill(g) {
+  const e = pickCell(g);
+  if (!e) return true;
+  for (const v of shuffle([1,2,3,4,5,6,7,8,9])) {
+    if (e.u >> v & 1) continue;
+    g[e.i] = v;
+    if (fill(g)) return true;
+    g[e.i] = 0;
+  }
+  return false;
+}
+function makePuzzle(remove) {
+  const sol = Array(81).fill(0);
+  fill(sol);
+  const p = sol.slice();
+  let removed = 0;
+  for (const i of shuffle([...Array(81).keys()])) {
+    if (removed >= remove) break;
+    const keep = p[i];
+    p[i] = 0;
+    if (count(p.slice(), 2) === 1) removed++; else p[i] = keep;
+  }
+  return p;
+}
+
+let given, cur, sel;
+
+function conflicts() {
+  const bad = new Set();
+  for (let i = 0; i < 81; i++) {
+    if (!cur[i]) continue;
+    const r = i / 9 | 0, c = i % 9;
+    for (let j = 0; j < 81; j++) {
+      if (j === i || cur[j] !== cur[i]) continue;
+      const r2 = j / 9 | 0, c2 = j % 9;
+      if (r === r2 || c === c2 || (r / 3 | 0) === (r2 / 3 | 0) && (c / 3 | 0) === (c2 / 3 | 0)) bad.add(i);
+    }
+  }
+  return bad;
+}
+
+function render() {
+  const bad = conflicts();
+  $('board').replaceChildren(...cur.map((v, i) => {
+    const b = document.createElement('button');
+    b.textContent = v || '';
+    b.className = (given[i] ? 'given ' : '') + (bad.has(i) ? 'bad ' : '') + (i === sel ? 'sel' : '');
+    b.setAttribute('aria-label', `Row ${(i / 9 | 0) + 1}, column ${i % 9 + 1}${v ? ', ' + v : ', empty'}`);
+    b.onclick = () => { sel = i; render(); };
+    return b;
+  }));
+  const solved = cur.every(Boolean) && !bad.size;
+  $('status').textContent = solved ? 'Solved.' : `${cur.filter(v => !v).length} squares left.`;
+}
+
+function set(v) {
+  if (sel == null || given[sel]) return;
+  cur[sel] = v;
+  render();
+  $('board').children[sel].focus();
+}
+
+function newPuzzle() {
+  given = makePuzzle(Number($('level').value));
+  cur = given.slice();
+  sel = null;
+  given = given.map(Boolean);
+  render();
+}
+
+$('pad').replaceChildren(...[1,2,3,4,5,6,7,8,9,0].map(n => {
+  const b = document.createElement('button');
+  b.textContent = n || 'Clear';
+  b.style.width = n ? '' : 'auto';
+  b.style.padding = n ? '' : '6px 10px';
+  b.onclick = () => set(n);
+  return b;
+}));
+document.addEventListener('keydown', e => {
+  if (e.key >= '0' && e.key <= '9') set(Number(e.key));
+  else if (e.key === 'Backspace' || e.key === 'Delete') set(0);
+  else if (e.key.startsWith('Arrow') && sel != null) {
+    e.preventDefault();
+    const d = { ArrowUp: -9, ArrowDown: 9, ArrowLeft: -1, ArrowRight: 1 }[e.key];
+    const n = sel + d;
+    if (n >= 0 && n < 81 && !(d === 1 && n % 9 === 0) && !(d === -1 && sel % 9 === 0)) { sel = n; render(); $('board').children[sel].focus(); }
+  }
+});
+$('level').onchange = $('new').onclick = e => { e.target.blur(); newPuzzle(); };
+newPuzzle();
+</script>
+</body>
+</html>

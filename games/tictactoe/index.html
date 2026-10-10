@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>tic tac toe</title>
+<link rel="stylesheet" href="../../base.css">
+<style>
+  #board { grid-template-columns: repeat(3, 96px); }
+  #board button { width: 96px; height: 96px; border: 0; border-radius: 0; font: 400 48px "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive; }
+  #board button.o { color: var(--accent); }
+  #board button:hover:not(:disabled) { background: var(--line); color: var(--ink); }
+  #board button:disabled { opacity: 1; cursor: default; }
+</style>
+</head>
+<body>
+<main>
+<header><h1>Tic tac toe</h1><a href="../../">Back to Menu</a></header>
+<div id="board" class="board"></div>
+<p id="status"></p>
+<div class="bar">
+  <select id="mode" aria-label="Opponent">
+    <option value="easy">bot: easy</option>
+    <option value="medium">bot: medium</option>
+    <option value="hard" selected>bot: hard</option>
+    <option value="two">two players</option>
+  </select>
+  <select id="side" aria-label="Your mark">
+    <option value="X">you play x (first)</option>
+    <option value="O">you play o (second)</option>
+  </select>
+  <button id="new">New game</button>
+</div>
+</main>
+<script src="../../lib/search.js"></script>
+<script>
+const LINES = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+const outcome = b => {
+  for (const [a, c, d] of LINES) if (b[a] && b[a] === b[c] && b[a] === b[d]) return b[a];
+  return b.every(Boolean) ? 'draw' : null;
+};
+const G = {
+  moves: s => s.b.flatMap((v, i) => v ? [] : [i]),
+  apply: (s, i) => ({ b: s.b.map((v, j) => j === i ? s.t : v), t: s.t === 'X' ? 'O' : 'X' }),
+  over: s => outcome(s.b) !== null,
+  eval: (s, d) => { const w = outcome(s.b); return w && w !== 'draw' ? -(100 + d) : 0; },
+};
+const DEPTH = { medium: 2, hard: 9 };
+const $ = id => document.getElementById(id);
+let s, bot;
+
+function reset() {
+  s = { b: Array(9).fill(''), t: 'X' };
+  bot = $('mode').value === 'two' ? null : ($('side').value === 'X' ? 'O' : 'X');
+  $('side').disabled = !bot;
+  draw();
+  if (s.t === bot) setTimeout(botMove, 300);
+}
+
+function botMove() {
+  const mode = $('mode').value;
+  play(mode === 'easy' ? Search.random(G, s) : Search.pick(G, s, DEPTH[mode]));
+}
+
+function play(i) {
+  if (s.b[i] || outcome(s.b)) return;
+  s = G.apply(s, i);
+  draw();
+  if (!outcome(s.b) && s.t === bot) setTimeout(botMove, 300);
+}
+
+function draw() {
+  const w = outcome(s.b);
+  $('board').innerHTML = '';
+  s.b.forEach((v, i) => {
+    const b = document.createElement('button');
+    b.textContent = v;
+    b.className = v === 'O' ? 'o' : '';
+    b.setAttribute('aria-label', `Square ${i + 1}${v ? ', ' + v : ''}`);
+    b.disabled = !!v || !!w;
+    b.onclick = () => { if (s.t !== bot) play(i); };
+    $('board').append(b);
+  });
+  const who = m => !bot ? m : (m === bot ? 'Bot' : 'You');
+  $('status').textContent = w === 'draw' ? 'Draw.' : w ? `${who(w)} (${w}) ${who(w) === 'You' ? 'win' : 'wins'}.` : `${who(s.t)} to move (${s.t}).`;
+}
+
+$('mode').onchange = $('side').onchange = $('new').onclick = reset;
+reset();
+</script>
+</body>
+</html>

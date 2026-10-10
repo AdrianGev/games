@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2048</title>
+<link rel="stylesheet" href="../../base.css">
+<style>
+  #board { grid-template-columns: repeat(4, 80px); gap: 4px; padding: 4px; background: var(--line); }
+  #board div { height: 80px; font: 400 28px/80px "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive; text-align: center; background: #e5e7eb; }
+  #board div.v { background: var(--panel); border: 1px solid var(--ink); line-height: 78px; }
+  #board div.big { background: var(--accent); color: #fff; border-color: var(--accent); }
+  #board div.n3 { font-size: 22px; }
+  #board div.n4 { font-size: 18px; }
+</style>
+</head>
+<body>
+<main>
+<header><h1>2048</h1><a href="../../">Back to Menu</a></header>
+<div class="info"><span id="score" class="label"></span></div>
+<div id="board" class="board"></div>
+<p id="status"></p>
+<div class="bar">
+  <button id="new">New game</button>
+</div>
+<p class="muted">Arrow keys or WASD, or swipe. Equal tiles merge. Reach 2048.</p>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let g, score, won;
+
+const best = () => { try { return Number(localStorage.getItem('2048-best')) || 0; } catch { return 0; } };
+
+function slide(row) {
+  const t = row.filter(Boolean), out = [];
+  let pts = 0;
+  for (let i = 0; i < t.length; i++) {
+    if (t[i] === t[i + 1]) { out.push(t[i] * 2); pts += t[i] * 2; i++; }
+    else out.push(t[i]);
+  }
+  while (out.length < 4) out.push(0);
+  return [out, pts];
+}
+
+const turn = m => m[0].map((_, c) => m.map(r => r[c]).reverse());
+
+function move(dir) {
+  let m = g;
+  for (let i = 0; i < dir; i++) m = turn(m);
+  let moved = false, pts = 0;
+  m = m.map(r => { const [n, p] = slide(r); pts += p; if (n.join() !== r.join()) moved = true; return n; });
+  for (let i = 0; i < (4 - dir) % 4; i++) m = turn(m);
+  if (!moved) return;
+  g = m; score += pts;
+  spawn();
+  try { if (score > best()) localStorage.setItem('2048-best', score); } catch {}
+  render();
+}
+
+function spawn() {
+  const free = [];
+  g.forEach((r, y) => r.forEach((v, x) => { if (!v) free.push([y, x]); }));
+  if (!free.length) return;
+  const [y, x] = free[Math.floor(Math.random() * free.length)];
+  g[y][x] = Math.random() < 0.9 ? 2 : 4;
+}
+
+const stuck = () => ![0, 1, 2, 3].some(d => {
+  let m = g;
+  for (let i = 0; i < d; i++) m = turn(m);
+  return m.some(r => slide(r)[0].join() !== r.join());
+});
+
+function reset() {
+  g = Array.from({ length: 4 }, () => Array(4).fill(0));
+  score = 0; won = false;
+  spawn(); spawn();
+  render();
+}
+
+function render() {
+  $('board').replaceChildren(...g.flat().map(v => {
+    const d = document.createElement('div');
+    d.textContent = v || '';
+    d.className = (v ? 'v ' : '') + (v >= 128 ? 'big ' : '') + (v >= 1000 ? 'n4' : v >= 100 ? 'n3' : '');
+    return d;
+  }));
+  if (g.flat().includes(2048)) won = true;
+  $('score').textContent = `Score ${score} | Best ${best()}`;
+  $('status').textContent = stuck() ? 'No moves left. Press New game.' : won ? 'You made 2048. Keep going if you like.' : '';
+}
+
+const KEYS = { ArrowLeft: 0, a: 0, ArrowUp: 3, w: 3, ArrowRight: 2, d: 2, ArrowDown: 1, s: 1 };
+document.addEventListener('keydown', e => {
+  if (!(e.key in KEYS)) return;
+  e.preventDefault();
+  move(KEYS[e.key]);
+});
+let sx, sy;
+$('board').addEventListener('touchstart', e => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+$('board').addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < 20) return;
+  move(Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 0 : 2) : (dy < 0 ? 3 : 1));
+});
+$('new').onclick = reset;
+reset();
+</script>
+</body>
+</html>

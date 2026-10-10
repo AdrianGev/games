@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>word guess</title>
+<link rel="stylesheet" href="../../base.css">
+<style>
+  #grid { display: grid; grid-template-columns: repeat(5, 52px); gap: 4px; margin: 0 auto 16px; width: max-content; }
+  #grid div { height: 52px; border: 1px solid var(--line); background: var(--panel); font: 400 26px/50px "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive; text-align: center; text-transform: uppercase; }
+  #grid div.filled { border-color: var(--ink); }
+  .hit { background: var(--accent) !important; border-color: var(--accent) !important; color: #fff; }
+  .near { background: #f0d36a !important; border-color: #c4a53a !important; }
+  .miss { background: var(--line) !important; color: var(--muted); }
+  #keys { display: flex; flex-wrap: wrap; gap: 4px; max-width: 420px; justify-content: center; margin: 0 auto; }
+  #keys button { min-width: 36px; padding: 8px 0; text-transform: uppercase; }
+  #keys button.wide { padding: 8px 12px; }
+</style>
+</head>
+<body>
+<main>
+<header><h1>Word guess</h1><a href="../../">Back to Menu</a></header>
+<div id="grid"></div>
+<div id="keys"></div>
+<p id="status"></p>
+<div class="bar">
+  <select id="level" aria-label="Difficulty">
+    <option value="8">easy (8 guesses)</option>
+    <option value="6" selected>medium (6 guesses)</option>
+    <option value="4">hard (4 guesses)</option>
+  </select>
+  <button id="new">New word</button>
+</div>
+<p class="muted">Guess the five-letter word. Red: right letter, right place. Tan: in the word, wrong place.</p>
+</main>
+<script>
+const WORDS = `about above abuse actor adapt admit adult after again agent agree ahead alarm album alert alike alive allow alone along alter among anger angle angry apart apple apply arena argue arise armed arrow aside asset avoid awake award aware badly baker basic basis beach began begin being below bench birth black blame blank blind block blood board boost bound brain brand bread break breed brick brief bring broad brown build built buyer cable carry catch cause chain chair chart chase cheap check chess chest chief child china choir chose civil claim class clean clear clerk click climb clock close cloth cloud coach coast could count court cover craft crash cream crime cross crowd crown curve cycle daily dance death delay depth dirty doubt dozen draft drama dream dress drink drive early earth eight elite empty enemy enjoy enter entry equal error event every exact exist extra faith false fault fiber field fifth fifty fight final first flame flash fleet floor fluid focus force forth forty forum found frame frank fresh front fruit fully funny giant given glass globe going grace grade grain grand grant grass great green gross group grown guard guess guest guide happy heart heavy hence horse hotel house human ideal image index inner input issue joint judge juice knife known label large laser later laugh layer learn lease least leave legal level light limit local logic loose lower lucky lunch magic major maker march match maybe mayor meant media metal might minor minus mixed model money month moral motor mount mouse mouth movie music needs never newly night noise north novel nurse ocean offer often order other ought paint panel paper party peace phase phone photo piano piece pilot pitch place plain plane plant plate point pound power press price pride prime print prior prize proof proud prove queen quick quiet quite radio raise range rapid ratio reach ready refer right river rough round route royal rural scale scene scope score sense serve seven shall shape share sharp sheet shelf shell shift shirt shock shoot short shown sight since sixth sixty sized skill sleep slide small smart smile smoke solid solve sorry sound south space spare speak speed spend spent split sport staff stage stake stand start state steam steel stick still stock stone stood store storm story strip stuck study stuff style sugar suite super sweet table taken taste teach thank their theme there these thick thing think third those three threw throw tight tired title today topic total touch tough tower track trade train treat trend trial tribe trick tried tries truck truly trust truth twice under union unity until upper upset urban usage usual valid value video virus visit vital voice waste watch water wheel where which while white whole whose woman world worry worse worst worth would wound write wrong wrote young youth`.split(' ');
+
+const $ = id => document.getElementById(id);
+let target, rows, cur, max, over;
+const keyState = {};
+
+function score(guess, word) {
+  const res = Array(5).fill('miss'), left = {};
+  for (let i = 0; i < 5; i++) {
+    if (guess[i] === word[i]) res[i] = 'hit';
+    else left[word[i]] = (left[word[i]] || 0) + 1;
+  }
+  for (let i = 0; i < 5; i++) {
+    if (res[i] === 'hit') continue;
+    if (left[guess[i]] > 0) { res[i] = 'near'; left[guess[i]]--; }
+  }
+  return res;
+}
+
+function reset() {
+  target = WORDS[Math.floor(Math.random() * WORDS.length)];
+  max = Number($('level').value);
+  rows = []; cur = ''; over = false;
+  for (const k in keyState) delete keyState[k];
+  render();
+}
+
+function submit() {
+  if (over || cur.length < 5) return;
+  const res = score(cur, target);
+  rows.push({ word: cur, res });
+  res.forEach((r, i) => {
+    const k = cur[i], rank = { miss: 1, near: 2, hit: 3 };
+    if (!keyState[k] || rank[r] > rank[keyState[k]]) keyState[k] = r;
+  });
+  if (cur === target) over = 'won';
+  else if (rows.length === max) over = 'lost';
+  cur = '';
+  render();
+}
+
+function type(ch) {
+  if (over) return;
+  if (ch === 'Enter') submit();
+  else if (ch === 'Backspace') cur = cur.slice(0, -1);
+  else if (/^[a-z]$/.test(ch) && cur.length < 5) cur += ch;
+  render();
+}
+
+function render() {
+  const cells = [];
+  for (let r = 0; r < max; r++) for (let c = 0; c < 5; c++) {
+    const d = document.createElement('div');
+    const row = rows[r];
+    if (row) { d.textContent = row.word[c]; d.className = row.res[c]; }
+    else if (r === rows.length && cur[c]) { d.textContent = cur[c]; d.className = 'filled'; }
+    cells.push(d);
+  }
+  $('grid').replaceChildren(...cells);
+  $('status').textContent = over === 'won' ? `Solved in ${rows.length}.` : over === 'lost' ? `The word was ${target.toUpperCase()}.` : `${max - rows.length} guesses left.`;
+  $('keys').replaceChildren(...[...'qwertyuiopasdfghjklzxcvbnm', 'Enter', 'Backspace'].map(k => {
+    const b = document.createElement('button');
+    b.textContent = k === 'Backspace' ? 'Del' : k;
+    b.className = (k.length > 1 ? 'wide ' : '') + (keyState[k] || '');
+    b.onclick = () => type(k);
+    return b;
+  }));
+}
+
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === 'Enter' && document.activeElement.tagName === 'BUTTON') return;
+  type(e.key.length === 1 ? e.key.toLowerCase() : e.key);
+});
+$('level').onchange = $('new').onclick = e => { e.target.blur(); reset(); };
+reset();
+</script>
+</body>
+</html>

@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>blackjack</title>
+<link rel="stylesheet" href="../../base.css">
+<style>
+  .hand { display: flex; gap: 8px; min-height: 84px; margin: 6px 0 4px; justify-content: center; }
+  .table { min-height: 440px; display: flex; flex-direction: column; justify-content: space-between; text-align: center; }
+  .card { width: 56px; height: 80px; border: 1px solid var(--ink); background: var(--panel); padding: 6px; font: 400 20px "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive; }
+  .card.red { color: #b3261e; }
+  .card.hidden { background: var(--line); color: var(--line); }
+  .row { margin-bottom: 20px; }
+  .stats { font: 14px "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive; display: flex; gap: 24px; justify-content: center; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<main>
+<header><h1>Blackjack</h1><a href="../../">Back to Menu</a></header>
+<div class="table">
+  <div class="stats"><span>Chips: <b id="bank"></b></span><span>Bet: <b id="betshow"></b></span></div>
+  <div class="row"><span class="label">Dealer <span id="dtotal"></span></span><div id="dealer" class="hand"></div></div>
+  <div class="row"><span class="label">You <span id="ptotal"></span></span><div id="player" class="hand"></div></div>
+  <p id="status"></p>
+</div>
+<div class="bar">
+  <label class="label" for="bet">Bet</label>
+  <select id="bet"><option>10</option><option>20</option><option>50</option></select>
+  <button id="deal" class="primary">Deal</button>
+  <button id="hit">Hit</button>
+  <button id="stand">Stand</button>
+  <button id="double">Double</button>
+</div>
+<p class="muted">Dealer stands on 17. Blackjack pays 3 to 2. No splits or insurance.</p>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+const SUITS = ['♠','♥','♦','♣'];
+
+function total(h) {
+  let t = 0, aces = 0;
+  for (const c of h) { if (c.r === 1) { aces++; t += 11; } else t += Math.min(c.r, 10); }
+  while (t > 21 && aces > 0) { t -= 10; aces--; }
+  return t;
+}
+const natural = h => h.length === 2 && total(h) === 21;
+
+let deck = [], bank = 100, wager = 0, player = [], dealer = [], live = false, note = '';
+
+function draw1() {
+  if (deck.length < 15) {
+    deck = [];
+    for (let r = 1; r <= 13; r++) for (const s of SUITS) deck.push({ r, s });
+    for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
+  }
+  return deck.pop();
+}
+
+function deal() {
+  if (bank <= 0) bank = 100;
+  wager = Math.min(Number($('bet').value), bank);
+  bank -= wager;
+  note = wager < Number($('bet').value) ? `All in with ${wager}.` : `Bet ${wager}.`;
+  player = [draw1(), draw1()];
+  dealer = [draw1(), draw1()];
+  live = true;
+  if (natural(player) || natural(dealer)) finish();
+  else render(note + ' Hit, stand or double.');
+}
+
+function hit() {
+  player.push(draw1());
+  if (total(player) > 21) finish();
+  else if (total(player) === 21) stand();
+  else render('Hit, stand or double.');
+}
+
+function stand() {
+  while (total(dealer) < 17) dealer.push(draw1());
+  finish();
+}
+
+function double() {
+  const extra = Math.min(wager, bank);
+  bank -= extra; wager += extra;
+  player.push(draw1());
+  if (total(player) > 21) finish(); else stand();
+}
+
+function finish() {
+  live = false;
+  const p = total(player), d = total(dealer);
+  let msg, back = 0;
+  if (p > 21) msg = 'Bust. Dealer wins.';
+  else if (natural(player) && !natural(dealer)) { msg = 'Blackjack! Pays 3 to 2.'; back = wager * 2.5; }
+  else if (natural(dealer) && !natural(player)) msg = 'Dealer has blackjack.';
+  else if (d > 21) { msg = 'Dealer busts. You win.'; back = wager * 2; }
+  else if (p > d) { msg = 'You win.'; back = wager * 2; }
+  else if (p === d) { msg = 'Push.'; back = wager; }
+  else msg = 'Dealer wins.';
+  bank += back;
+  if (bank <= 0) msg += ' Out of chips: next deal resets to 100.';
+  render(msg);
+}
+
+function cardEl(c, hidden) {
+  const d = document.createElement('div');
+  d.className = 'card' + (hidden ? ' hidden' : (c.s === '♥' || c.s === '♦' ? ' red' : ''));
+  d.textContent = hidden ? '?' : RANKS[c.r - 1] + c.s;
+  return d;
+}
+
+function render(msg) {
+  $('dealer').replaceChildren(...dealer.map((c, i) => cardEl(c, live && i === 1)));
+  $('player').replaceChildren(...player.map(c => cardEl(c)));
+  $('dtotal').textContent = dealer.length ? (live ? '' : total(dealer)) : '';
+  $('ptotal').textContent = player.length ? total(player) : '';
+  $('bank').textContent = bank;
+  $('betshow').textContent = live ? wager : '-';
+  $('status').textContent = msg;
+  $('deal').disabled = live;
+  $('bet').disabled = live;
+  $('hit').disabled = $('stand').disabled = !live;
+  $('double').disabled = !live || player.length !== 2 || bank <= 0;
+  const ok = [10, 20, 50].filter(v => v === 10 || v <= bank);
+  [...$('bet').options].forEach(o => { o.disabled = !ok.includes(Number(o.value)); });
+  if (!ok.includes(Number($('bet').value))) $('bet').value = ok.at(-1);
+}
+
+$('deal').onclick = deal;
+$('hit').onclick = hit;
+$('stand').onclick = stand;
+$('double').onclick = double;
+render('Choose a bet and deal.');
+</script>
+</body>
+</html>

@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>connect 4</title>
+<link rel="stylesheet" href="../../base.css">
+<style>
+  #board { grid-template-columns: repeat(7, 56px); }
+  #board button { width: 56px; height: 56px; border: 0; border-radius: 0; padding: 0; position: relative; }
+  #board button:hover:not(:disabled) { background: var(--line); }
+  #board button:disabled { opacity: 1; cursor: default; }
+  #board button i { position: absolute; inset: 7px; border-radius: 50%; border: 1px solid var(--line); }
+  #board button i.p1 { background: var(--accent); border-color: var(--accent); }
+  #board button i.p2 { background: var(--ink); border-color: var(--ink); }
+</style>
+</head>
+<body>
+<main>
+<header><h1>Connect 4</h1><a href="../../">Back to Menu</a></header>
+<div id="board" class="board"></div>
+<p id="status"></p>
+<div class="bar">
+  <select id="mode" aria-label="Opponent">
+    <option value="easy">bot: easy</option>
+    <option value="medium" selected>bot: medium</option>
+    <option value="hard">bot: hard</option>
+    <option value="two">two players</option>
+  </select>
+  <select id="side" aria-label="Your colour">
+    <option value="1">you play blue (first)</option>
+    <option value="2">you play black (second)</option>
+  </select>
+  <button id="new">New game</button>
+</div>
+</main>
+<script src="../../lib/search.js"></script>
+<script>
+const R = 6, C = 7;
+const NAME = { 1: 'Blue', 2: 'Black' };
+const WINDOWS = [];
+for (let r = 0; r < R; r++) for (let c = 0; c < C; c++)
+  for (const [dr, dc] of [[0,1],[1,0],[1,1],[1,-1]]) {
+    const r2 = r + 3 * dr, c2 = c + 3 * dc;
+    if (r2 < 0 || r2 >= R || c2 < 0 || c2 >= C) continue;
+    WINDOWS.push([0,1,2,3].map(k => (r + k * dr) * C + c + k * dc));
+  }
+
+const outcome = b => {
+  for (const w of WINDOWS) {
+    const v = b[w[0]];
+    if (v && v === b[w[1]] && v === b[w[2]] && v === b[w[3]]) return v;
+  }
+  return b.includes(0) ? 0 : 3;
+};
+const winningCells = b => WINDOWS.find(w => b[w[0]] && w.every(i => b[i] === b[w[0]]));
+
+function heuristic(b, me) {
+  let h = 0;
+  for (const w of WINDOWS) {
+    let mine = 0, theirs = 0;
+    for (const i of w) { if (b[i] === me) mine++; else if (b[i]) theirs++; }
+    if (!theirs) h += [0, 1, 5, 25][mine] || 0;
+    else if (!mine) h -= [0, 1, 5, 25][theirs] || 0;
+  }
+  for (let r = 0; r < R; r++) { const v = b[r * C + 3]; if (v) h += v === me ? 3 : -3; }
+  return h;
+}
+
+const ORDER = [3, 2, 4, 1, 5, 0, 6];
+const G = {
+  moves: s => ORDER.filter(c => !s.b[c]),
+  apply: (s, c) => {
+    const b = s.b.slice();
+    for (let r = R - 1; r >= 0; r--) if (!b[r * C + c]) { b[r * C + c] = s.t; break; }
+    return { b, t: 3 - s.t };
+  },
+  over: s => outcome(s.b) !== 0,
+  eval: (s, d) => {
+    const o = outcome(s.b);
+    if (o === 3) return 0;
+    if (o) return -(10000 + d);
+    return heuristic(s.b, s.t);
+  },
+};
+const DEPTH = { medium: 3, hard: 6 };
+const $ = id => document.getElementById(id);
+let s, bot;
+
+function reset() {
+  s = { b: Array(R * C).fill(0), t: 1 };
+  bot = $('mode').value === 'two' ? 0 : 3 - Number($('side').value);
+  $('side').disabled = !bot;
+  draw();
+  if (s.t === bot) setTimeout(botMove, 300);
+}
+
+function botMove() {
+  const mode = $('mode').value;
+  play(mode === 'easy' ? Search.random(G, s) : Search.pick(G, s, DEPTH[mode]));
+}
+
+function play(c) {
+  if (outcome(s.b) || s.b[c]) return;
+  s = G.apply(s, c);
+  draw();
+  if (!outcome(s.b) && s.t === bot) setTimeout(botMove, 300);
+}
+
+function draw() {
+  const o = outcome(s.b), win = o && o < 3 ? winningCells(s.b) : null;
+  const el = $('board');
+  el.innerHTML = '';
+  for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) {
+    const v = s.b[r * C + c];
+    const b = document.createElement('button');
+    b.innerHTML = '<i class="' + (v ? 'p' + v : '') + '"></i>';
+    if (win && win.includes(r * C + c)) b.firstChild.style.outline = '3px solid var(--accent)';
+    b.setAttribute('aria-label', `Column ${c + 1}, row ${r + 1}${v ? ', ' + NAME[v] : ''}`);
+    b.disabled = !!o || !!s.b[c];
+    b.onclick = () => { if (s.t !== bot) play(c); };
+    el.append(b);
+  }
+  const who = p => bot ? (p === bot ? 'Bot' : 'You') + ` (${NAME[p].toLowerCase()})` : NAME[p];
+  $('status').textContent = o === 3 ? 'Draw.' : o ? `${who(o)} ${bot && o !== bot ? 'win' : 'wins'}.` : `${who(s.t)} to move.`;
+}
+
+$('mode').onchange = $('side').onchange = $('new').onclick = reset;
+reset();
+</script>
+</body>
+</html>
